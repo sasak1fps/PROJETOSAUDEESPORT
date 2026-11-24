@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recepção — Projeto Saúde e Esporte</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; background: #f4f6f8; color: #222; }
+    .container { max-width: 1050px; margin: auto; }
+    .card { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    h1, h2, h3 { margin-top: 0; }
+    h3 { margin-top: 18px; margin-bottom: 10px; font-size: 16px; border-bottom: 1px solid #eef2f6; padding-bottom: 6px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+    button { background: #0b6efd; color: #fff; border: none; padding: 10px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0956c7; }
+    .msg-sucesso { background: #d1e7dd; color: #0f5132; padding: 12px; border-radius: 6px; margin-bottom: 16px; white-space: pre-line; }
+    .msg-erro { background: #f8d7da; color: #842029; padding: 12px; border-radius: 6px; margin-bottom: 16px; white-space: pre-line; }
+    .resultado { border-left: 4px solid #0b6efd; padding: 12px; background: #f9fbff; margin-top: 12px; border-radius: 4px; }
+    .alerta { color: #b02a37; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { border: 1px solid #dee2e6; padding: 8px 10px; text-align: left; }
+    th { background: #f1f5f9; }
+    .abas { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+    .aba-btn { background: #e2e8f0; color: #1e293b; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .aba-btn:hover { background: #cbd5e1; }
+    .aba-btn.ativa { background: #0b6efd; color: #fff; }
+    .secao-aba { display: none; }
+    .secao-aba.ativa { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Projeto Saúde e Esporte</h1>
+
+    <div class="abas">
+      <button type="button" id="btn-recepcao" class="aba-btn ativa" onclick="abrirAba('recepcao')">
+        Modo Recepção (Consulta / Turmas)
+      </button>
+      <button type="button" id="btn-cadastro" class="aba-btn" onclick="abrirAba('cadastro')">
+        Novo Cadastro
+      </button>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for categoria, mensagem in messages %}
+          <div class="msg-{{ categoria }}">{{ mensagem }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- ABA 1: MODO RECEPÇÃO -->
+    <div id="aba-recepcao" class="secao-aba ativa">
+      <div class="card">
+        <h2>Consulta Rápida (Emergência / Participante)</h2>
+        <form method="GET" action="/">
+          <div style="display:flex; gap:10px;">
+            <input type="text" name="busca" placeholder="Digite nome ou CPF..." value="{{ termo }}" />
+            <button type="submit">Buscar</button>
+          </div>
+        </form>
+
+        {% if termo %}
+          {% if resultados %}
+            {% for p in resultados %}
+              <div class="resultado">
+                <strong>{{ p.nome_completo }}</strong> ({{ p.idade }} anos) — CPF: {{ p.cpf_formatado }} — Tel: {{ p.telefone_formatado }}<br>
+                <strong>Tipo sanguíneo:</strong> {{ p.tipo_sanguineo }} |
+                <strong>Cardíaco:</strong>
+                {% if p.problemas_cardiacos %}
+                  <span class="alerta">Sim ({{ p.detalhes_cardiacos }})</span>
+                {% else %}
+                  Não
+                {% endif %}<br>
+                <strong>Outras doenças / Alergias / Medicamentos:</strong>
+                {{ p.outras_doencas or "—" }} | {{ p.alergias or "—" }} | {{ p.medicamentos_continuos or "—" }}<br>
+                <strong>Restrições / Idosos:</strong> {{ p.restricoes_fisicas_ou_idosos or "—" }}<br>
+                <strong>Emergência:</strong> {{ p.emergencia_nome or "—" }} ({{ p.emergencia_parentesco or "—" }}) — {{ p.emergencia_telefone_formatado or "—" }}<br>
+                <strong>Modalidades:</strong>
+                {% for m in p.modalidades %}
+                  [{{ m.nome }}: {{ m.dias_semana }} às {{ m.horario }}]
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <p>Nenhum participante encontrado para "{{ termo }}".</p>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h2>Inscritos por Modalidade / Turma</h2>
+        <form method="GET" action="/">
+          <div class="grid" style="align-items: end;">
+            <div>
+              <label>Modalidade</label>
+              <select name="filtro_modalidade">
+                <option value="">Todas as modalidades</option>
+                {% for mod in modalidades %}
+                  <option value="{{ mod.nome }}" {% if filtro_modalidade == mod.nome %}selected{% endif %}>
+                    {{ mod.nome }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>Dias da semana</label>
+              <select name="filtro_dias">
+                <option value="">Todos os dias</option>
+                <option value="Seg/Qua/Sex" {% if filtro_dias == "Seg/Qua/Sex" %}selected{% endif %}>Seg/Qua/Sex</option>
+                <option value="Ter/Qui" {% if filtro_dias == "Ter/Qui" %}selected{% endif %}>Ter/Qui</option>
+                <option value="Sábado" {% if filtro_dias == "Sábado" %}selected{% endif %}>Sábado</option>
+                <option value="A definir" {% if filtro_dias == "A definir" %}selected{% endif %}>A definir</option>
+              </select>
+            </div>
+            <div>
+              <label>Horário</label>
+              <input type="text" name="filtro_horario" value="{{ filtro_horario }}" placeholder="Ex.: 13h, 14h" />
+            </div>
+            <div>
+              <button type="submit">Listar Turma</button>
+            </div>
+          </div>
+        </form>
+
+        {% if ver_turma %}
+          {% if inscritos_turma %}
+            <p style="margin-top: 12px;"><strong>Total de inscritos encontrados:</strong> {{ inscritos_turma|length }}</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Participante</th>
+                  <th>Idade</th>
+                  <th>Turma</th>
+                  <th>Telefone</th>
+                  <th>Emergência</th>
+                  <th>Atenção Saúde / Restrições</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in inscritos_turma %}
+                  <tr>
+                    <td><strong>{{ item.nome_completo }}</strong></td>
+                    <td>{{ item.idade }} anos</td>
+                    <td>{{ item.modalidade }} — {{ item.dias_semana }} às {{ item.horario }}</td>
+                    <td>{{ item.telefone_formatado }}</td>
+                    <td>{{ item.emergencia_nome or "—" }} ({{ item.emergencia_telefone_formatado or "—" }})</td>
+                    <td>
+                      {% if item.problemas_cardiacos %}
+                        <span class="alerta">Cardíaco: {{ item.detalhes_cardiacos }}</span>
+                      {% endif %}
+                      {% if item.restricoes_fisicas_ou_idosos %}
+                        {% if item.problemas_cardiacos %}<br>{% endif %}
+                        {{ item.restricoes_fisicas_ou_idosos }}
+                      {% endif %}
+                      {% if not item.problemas_cardiacos and not item.restricoes_fisicas_ou_idosos %}
+                        —
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p style="margin-top: 12px;">Nenhum inscrito encontrado para o filtro selecionado.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ABA 2: NOVO CADASTRO -->
+    <div id="aba-cadastro" class="secao-aba">
+      <div class="card">
+        <h2>Novo Cadastro</h2>
+        <form method="POST" action="/cadastrar">
+          <h3>1. Dados do Participante</h3>
+          <div class="grid">
+            <div><label>Nome completo *</label><input type="text" name="nome_completo" required /></div>
+            <div><label>Data de nascimento (AAAA-MM-DD ou DD/MM/AAAA) *</label><input type="text" name="data_nascimento" placeholder="ex.: 15/05/1945" required /></div>
+            <div><label>RG *</label><input type="text" name="rg" required /></div>
+            <div><label>CPF *</label><input type="text" name="cpf" required /></div>
+            <div><label>Telefone *</label><input type="text" name="telefone" required /></div>
+            <div><label>E-mail</label><input type="text" name="email" /></div>
+          </div>
+
+          <h3>2. Responsável Legal (obrigatório se menor de 18 anos)</h3>
+          <div class="grid">
+            <div><label>Nome do responsável</label><input type="text" name="resp_nome" /></div>
+            <div><label>CPF do responsável</label><input type="text" name="resp_cpf" /></div>
+            <div><label>Telefone do responsável</label><input type="text" name="resp_telefone" /></div>
+            <div><label>Parentesco</label><input type="text" name="resp_parentesco" placeholder="Ex.: Mãe, Pai, Avó" /></div>
+          </div>
+
+          <h3>3. Contato de Emergência</h3>
+          <div class="grid">
+            <div><label>Nome completo *</label><input type="text" name="em_nome" required /></div>
+            <div><label>Parentesco *</label><input type="text" name="em_parentesco" required /></div>
+            <div><label>Telefone *</label><input type="text" name="em_telefone" required /></div>
+          </div>
+
+          <h3>4. Saúde</h3>
+          <div class="grid">
+            <div>
+              <label>Tipo sanguíneo *</label>
+              <select name="tipo_sanguineo">
+                <option value="Não informado">Não informado</option>
+                <option value="O+">O+</option><option value="O-">O-</option>
+                <option value="A+">A+</option><option value="A-">A-</option>
+                <option value="B+">B+</option><option value="B-">B-</option>
+                <option value="AB+">AB+</option><option value="AB-">AB-</option>
+              </select>
+            </div>
+            <div><label>Outras doenças</label><input type="text" name="outras_doencas" /></div>
+            <div><label>Alergias</label><input type="text" name="alergias" /></div>
+            <div><label>Medicamentos contínuos</label><input type="text" name="medicamentos_continuos" /></div>
+            <div><label>Restrições físicas / Atenção idosos</label><input type="text" name="restricoes_idosos" /></div>
+            <div><label>Detalhes problema cardíaco</label><input type="text" name="detalhes_cardiacos" /></div>
+          </div>
+          <div style="margin-top: 10px; display:flex; gap: 20px; flex-wrap: wrap;">
+            <label><input type="checkbox" name="problemas_cardiacos" style="width:auto;" /> Possui problemas cardíacos</label>
+            <label><input type="checkbox" name="atestado_valido" style="width:auto;" /> Atestado médico válido</label>
+          </div>
+
+          <h3>5. Modalidades e Turmas</h3>
+          <div id="lista-modalidades">
+            <div class="grid linha-modalidade" style="margin-bottom: 10px; align-items: end;">
+              <div>
+                <label>Modalidade *</label>
+                <select name="modalidade[]" required>
+                  {% for mod in modalidades %}
+                    <option value="{{ mod.nome }}">{{ mod.nome }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label>Dias da semana *</label>
+                <select name="dias_semana[]">
+                  <option value="Seg/Qua/Sex">Seg/Qua/Sex</option>
+                  <option value="Ter/Qui">Ter/Qui</option>
+                  <option value="Sábado">Sábado</option>
+                  <option value="A definir">A definir</option>
+                </select>
+              </div>
+              <div>
+                <label>Horário *</label>
+                <input type="text" name="horario[]" value="13h" placeholder="Ex.: 13h, 14h" required />
+              </div>
+              <div>
+                <button type="button" onclick="removerLinha(this)" style="background:#dc3545;">Remover</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <button type="button" onclick="adicionarModalidade()" style="background:#198754;">+ Adicionar outra modalidade</button>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <label>Observações gerais</label>
+            <textarea name="observacoes_gerais" rows="2"></textarea>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <button type="submit">Salvar Cadastro</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function abrirAba(nomeAba) {
+      document.querySelectorAll(".secao-aba").forEach((el) => el.classList.remove("ativa"));
+      document.querySelectorAll(".aba-btn").forEach((btn) => btn.classList.remove("ativa"));
+
+      document.getElementById("aba-" + nomeAba).classList.add("ativa");
+      document.getElementById("btn-" + nomeAba).classList.add("ativa");
+      localStorage.setItem("abaAtiva", nomeAba);
+    }
+
+    function adicionarModalidade() {
+      const container = document.getElementById("lista-modalidades");
+      const primeiraLinha = container.querySelector(".linha-modalidade");
+      const novaLinha = primeiraLinha.cloneNode(true);
+
+      const inputHorario = novaLinha.querySelector('input[name="horario[]"]');
+      if (inputHorario) inputHorario.value = "";
+
+      container.appendChild(novaLinha);
+    }
+
+    function removerLinha(botao) {
+      const container = document.getElementById("lista-modalidades");
+      const linhas = container.querySelectorAll(".linha-modalidade");
+      if (linhas.length > 1) {
+        botao.closest(".linha-modalidade").remove();
+      } else {
+        alert("O participante precisa ter pelo menos uma modalidade.");
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      const temBuscaOuTurma =
+        params.has("busca") ||
+        params.has("filtro_modalidade") ||
+        params.has("filtro_dias") ||
+        params.has("filtro_horario");
+
+      if (temBuscaOuTurma) {
+        abrirAba("recepcao");
+      } else {
+        const salva = localStorage.getItem("abaAtiva");
+        if (salva === "cadastro" || salva === "recepcao") {
+          abrirAba(salva);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
